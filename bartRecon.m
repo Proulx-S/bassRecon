@@ -45,7 +45,12 @@ fprintf('Reading Siemens .dat file: %s\n', datfile);
 twixobj = mapVBVD(datfile);
 
 fprintf('Successfully loaded .dat file with mapVBVD\n');
-fprintf('Number of datasets found: %d\n', length(twixobj));
+
+
+sz = twixobj{1,2}.image.dataSize;
+sz(3) = twixobj{1,2}.hdr.Config.ImageLines - twixobj{1,2}.image.NLin;
+% sz(9:11) = 1;
+sz([9 11]) = 1;
 
 
 
@@ -56,50 +61,64 @@ fprintf('Number of datasets found: %d\n', length(twixobj));
 % twix reordered:
 % [1-Columns   x  3-Lines     x  4-Partitions  x  2-Channels/Coils  x  12-Ida      x  8-Contrasts/Echoes  x  13-Idb       x  14-Idc        x  15-Idd      x  16-Ide         x  9-Measurements  x  7-(Cardiac-) Phases  x  17            x  5-Slices      x  6-Averages  x  10-Sets       x  11-Segments] (see mapVBVD.m)
 
+% format from twix to bart to reordered twix
+% [1-Columns   x  2-Channels/Coils x  3-Lines       x  4-Partitions      x  5-Slices    x  6-Averages          x  7-(Cardiac-) Phases  x  8-Contrasts/Echoes  x  9-Measurements  x  10-Sets        x  11-Segments     x  12-Ida               x  13-Idb        x  14-Idc           x  15-Idd      x  16-Ide                      ] (see mapVBVD.m)
+% [1-READ_DIM  x  2-PHS1_DIM       x  3-PHS2_DIM    x  4-COIL_DIM        x  5-MAPS_DIM  x  6-TE_DIM            x  7-COEFF_DIM          x  8-COEFF2_DIM        x  9-ITER_DIM      x  10-CSHIFT_DIM  x  11-TIME_DIM     x  12-TIME2_DIM         x  13-LEVEL_DIM  x  14-SLICE_DIM     x  15-AVG_DIM  x  16-BATCH_DIM                ] (see https://github.com/mrirecon/bart/blob/master/src/misc/mri.h)
+% [1-Columns   x  3-Lines          x  4-Partitions  x  2-Channels/Coils  x  12-Ida      x  8-Contrasts/Echoes  x  10-Sets              x  13-Idb              x  14-Idb          x  15-Idb         x  9-Measurements  x  7-(Cardiac-) Phases  x  17            x  5-Slices         x  6-Averages  x  16-Idb        x  11-Segments] (see mapVBVD.m)
+% [1 3 4 2 12 8 10 13 14 15 9 7 17 5 6 16 11]
+
+%% Calibration data
+% 1) load calibration data
+kcalib = permute(twixobj{1,2}.refscan(:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:),[1 3 4 2]);
+% 2) pad calibration data to match image data
+pad1 = twixobj{1,2}.hdr.Config.ImageColumns - size(kcalib,1);
+pad2 = twixobj{1,2}.hdr.Config.ImageLines - size(kcalib,2);
+pre1 = floor(pad1/2); post1 = ceil(pad1/2);
+pre2 = floor(pad2/2); post2 = ceil(pad2/2);
+kcalib = padarray(kcalib, [pre1 pre2], 0, 'pre');
+kcalib = padarray(kcalib, [post1 post2], 0, 'post');
+% 3) estimate coil sensitivities
+coilMap = bart('ecalib -m1', kcalib);
 
 
 
-
-senseImg = zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.hdr.Config.ImageLines twixobj{1,2}.image.NRep twixobj{1,2}.image.NSet]);
 % rep by rep because too large for matlab memory
+senseImg = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.hdr.Config.ImageLines 1 1 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep]));
 for irep = 1:twixobj{1,2}.image.NRep
-    for iset = 1:twixobj{1,2}.image.NSet
-        sz = twixobj{1,2}.image.dataSize;
-        sz(3) = twixobj{1,2}.hdr.Config.ImageLines - twixobj{1,2}.image.NLin;
-        sz(9:11) = 1;
+    fprintf('Processing rep %d\n', irep);
 
-        %% Image data
-        % 1) load single image data, 2) pad k-space lines to image-space lines, 3) resolve freq encode oversampling, 4) permute to match bart format --- single line for efficiency
-        kdata = permute(...
-            mrir_fDFT_freqencode(mrir_image_crop(mrir_fDFT_freqencode(...
-            permute(cat(3,sum(twixobj{1,2}.image(:,:,:,:,:,:,:,:,irep,iset,:,:),11),zeros(sz)),[1 3 2]))))    ,[1 2 4 3]);
+    %% Image data
+    % 1) load single image data, 2) pad k-space lines to image-space lines, 3) resolve freq encode oversampling, 4) permute to match bart format --- single line for efficiency
+    % kdata = mrir_fDFT_freqencode(mrir_image_crop(mrir_fDFT_freqencode(...
+    %     permute(cat(3,sum(twixobj{1,2}.image(:,:,:,:,:,:,:,:,irep,:,:,:),11),zeros(sz)),[1 3 4 2 12 8 13 14 15 16 9 7 17 5 6 10 11]))));
+    kdata = mrir_fDFT_freqencode(mrir_image_crop(mrir_fDFT_freqencode(...
+        permute(cat(3,sum(twixobj{1,2}.image(:,:,:,:,:,:,:,:,irep,:,:,:),11),zeros(sz)),[1 3 4 2 12 8 10 13 14 15 9 7 17 5 6 16 11]))));
 
-        %% Calibration data
-        % 1) load calibration data
-        kcalib = permute(twixobj{1,2}.refscan(:,:,:,:,:,:,:,:,:,:,:,:,:,:,:,:),[1 3 4 2]);
-        % 2) pad calibration data to match image data
-        pad1 = size(kdata,1) - size(kcalib,1);
-        pad2 = size(kdata,2) - size(kcalib,2);
-        pre1 = floor(pad1/2); post1 = ceil(pad1/2);
-        pre2 = floor(pad2/2); post2 = ceil(pad2/2);
-        kcalib = padarray(kcalib, [pre1 pre2], 0, 'pre');
-        kcalib = padarray(kcalib, [post1 post2], 0, 'post');
+    % kdata = permute(...
+    %     mrir_fDFT_freqencode(mrir_image_crop(mrir_fDFT_freqencode(...
+    %     permute(cat(3,sum(twixobj{1,2}.image(:,:,:,:,:,:,:,:,irep,:,:,:),11),zeros(sz)),[1 3 2]))))    ,[1 2 4 3]);
 
-        % %% Recon with GRAPPA
-        % % 1) reconstruct non-sampled k-space points, 2) fft to image space, 3) permute to match bart format --- single line for efficiency
-        % grappaImg = permute(...
-        %     ifft2c(GRAPPA(permute(kdata,[1 2 4 3]),permute(kcalib(64-17:64+18,64-17:64+18,:,:),[1 2 4 3]),[5,5],1e-2,0))    ,[1 2 4 3]);
-        % figure('MenuBar','none','ToolBar','none');
-        % imagesc(abs(grappaImg(:,:,1))); colormap gray; axis image; drawnow;
 
-        %% Recon with BART
-        % 1) estimate coil sensitivities, 2) reconstruct with SENSE (inverse FFT + SENSE) --- single line for efficiency
-        senseImg(:,:,irep,iset) = bart('pics', kdata,      bart('ecalib -m1', kcalib)     );
-        % imagesc(angle(senseImg(:,:,1,1,1))); colormap gray; axis image; drawnow;
-    end
+
+    
+    % %% Recon with GRAPPA
+    % % 1) reconstruct non-sampled k-space points, 2) fft to image space, 3) permute to match bart format --- single line for efficiency
+    % grappaImg = permute(...
+    %     ifft2c(GRAPPA(permute(kdata,[1 2 4 3]),permute(kcalib(64-17:64+18,64-17:64+18,:,:),[1 2 4 3]),[5,5],1e-2,0))    ,[1 2 4 3]);
+    % figure('MenuBar','none','ToolBar','none');
+    % imagesc(abs(grappaImg(:,:,1))); colormap gray; axis image; drawnow;
+
+    %% Recon with BART
+    % 1) estimate coil sensitivities, 2) reconstruct with SENSE (inverse FFT + SENSE) --- single line for efficiency
+    senseImg(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) = bart('pics', kdata,coilMap);
+    % imagesc(abs(senseImg(:,:,1,1,1,end))); colormap gray; axis image; drawnow;
 end
+
+%% Crop data
+senseImg = senseImg(171:187,193:209,:,:,:,:,1,:,:,:,:,:,:,:,:,:);
 
 %% Write data
 venc = [twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.asElm{:}];
-venc = [inf venc.nVelocity];
+venc = permute([inf venc.nVelocity],[1 3 4 5 6 7 2 8 9 10 11 12 13 14 15 16]);
+
 save(replace(datfile,'.dat','.mat'),'senseImg','venc');
