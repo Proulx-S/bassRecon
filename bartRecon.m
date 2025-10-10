@@ -115,7 +115,7 @@ for irep = 1:twixobj{1,2}.image.NRep
 end
 
 %% Crop data
-senseImg = senseImg(171:187,193:209,:,:,:,:,1,:,:,:,:,:,:,:,:,:);
+senseImg = senseImg(171:187,193:209,:,:,:,:,:,:,:,:,:,:,:,:,:,:);
 
 %% Write data
 venc = [twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.asElm{:}];
