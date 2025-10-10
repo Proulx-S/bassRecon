@@ -83,7 +83,7 @@ coilMap = bart('ecalib -m1', kcalib);
 
 
 % rep by rep because too large for matlab memory
-senseImg = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.hdr.Config.ImageLines 1 1 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep]));
+img = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.hdr.Config.ImageLines 1 1 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep]));
 for irep = 1:twixobj{1,2}.image.NRep
     fprintf('Processing rep %d\n', irep);
 
@@ -110,15 +110,18 @@ for irep = 1:twixobj{1,2}.image.NRep
 
     %% Recon with BART
     % 1) estimate coil sensitivities, 2) reconstruct with SENSE (inverse FFT + SENSE) --- single line for efficiency
-    senseImg(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) = bart('pics', kdata,coilMap);
-    % imagesc(abs(senseImg(:,:,1,1,1,end))); colormap gray; axis image; drawnow;
+    img(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) = bart('pics', kdata,coilMap);
+    % imagesc(abs(img(:,:,1,1,1,1,1,1,1,1,irep,1,1,1,1,1))); colormap gray; axis image; drawnow;
 end
 
 %% Crop data
-senseImg = senseImg(171:187,193:209,:,:,:,:,:,:,:,:,:,:,:,:,:,:);
+if exist('crop','var') && ~isempty(crop)
+    % img = img(171:187,193:209,:,:,:,:,:,:,:,:,:,:,:,:,:,:);
+    img = img(151:250,151:250,:,:,:,:,:,:,:,:,:,:,:,:,:,:);
+end
 
 %% Write data
 venc = [twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.asElm{:}];
 venc = permute([inf venc.nVelocity],[1 3 4 5 6 7 2 8 9 10 11 12 13 14 15 16]);
 
-save(replace(datfile,'.dat','.mat'),'senseImg','venc');
+save(replace(datfile,'.dat','_bart.mat'),'img','venc');
