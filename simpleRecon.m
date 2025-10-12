@@ -90,6 +90,8 @@ parfor irep = 1:twixobj{1,2}.image.NRep
     % img(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) = bart('pics', kdata,coilMap);
     % % imagesc(abs(img(:,:,1,1,1,1,1,1,1,1,irep,1,1,1,1,1))); colormap gray; axis image; drawnow;
 end
+fprintf('Recon done\n');
+
 
 
 
@@ -107,6 +109,9 @@ end
 
 
 %% Write data
+fprintf('Writing data\n');
 venc = [twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.asElm{:}];
 venc = permute([inf venc.nVelocity],[1 3 4 5 6 7 2 8 9 10 11 12 13 14 15 16]);
-save(replace(datfile,'.dat','_fft.mat'),'img','venc','kCoil');
+outName = replace(datfile,'.dat','_fft.mat');
+save(outName,'img','venc','kCoil');
+fprintf('Data written to %s\n', outName);
