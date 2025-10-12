@@ -48,11 +48,17 @@ sz([9 11]) = 1;
 
 
 
-twixobj{1,2}.hdr.Config.ImageLines
+cPh = mean(mean(mean(sum(twixobj{1,2}.image(:,:,:,:,:,:,:,:,:,1,:,:),11),9),1),3);
+cPh = mean(sum(twixobj{1,2}.image(:,:,:,:,:,:,:,:,:,1,:,:),11),9);
+load tmp
+scatter(angle(mean(tmp,1)),angle(cPh))
+
+
 
 % rep by rep because too large for matlab memory
-img = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.image.NLin 1 twixobj{1,2}.image.NCha 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep]));
-for irep = 1:twixobj{1,2}.image.NRep
+img   = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.image.NLin 1 twixobj{1,2}.image.NCha 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep]));
+kCoil = complex(zeros([1 1 1 twixobj{1,2}.image.NCha 1 1 1 1 1 1 twixobj{1,2}.image.NRep]));
+parfor irep = 1:twixobj{1,2}.image.NRep
     fprintf('Processing rep %d\n', irep);
 
     %% Image data
@@ -65,6 +71,8 @@ for irep = 1:twixobj{1,2}.image.NRep
     % Phase resolution
     kdata = kdata(:,1:twixobj{1,2}.image.NLin,:,:,:,:,:);
 
+    % Coil phase
+    kCoil(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) = mean(mean(kdata(:,:,:,:,:,:,1).*sos(kdata(:,:,:,:,:,:,1)),1),2)
 
     % kdata = permute(...
     %     mrir_fDFT_freqencode(mrir_image_crop(mrir_fDFT_freqencode(...
@@ -91,6 +99,7 @@ for irep = 1:twixobj{1,2}.image.NRep
 end
 
 
+
 %% Define crop range
 if all(size(cropRange,[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16])==[1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1]) && cropRange==1
     % Manual crop range selection routine
@@ -107,4 +116,4 @@ end
 %% Write data
 venc = [twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.asElm{:}];
 venc = permute([inf venc.nVelocity],[1 3 4 5 6 7 2 8 9 10 11 12 13 14 15 16]);
-save(replace(datfile,'.dat','_fft.mat'),'img','venc');
+save(replace(datfile,'.dat','_fft.mat'),'img','venc','kCoil');
