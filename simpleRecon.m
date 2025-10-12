@@ -48,13 +48,6 @@ sz([9 11]) = 1;
 
 
 
-cPh = mean(mean(mean(sum(twixobj{1,2}.image(:,:,:,:,:,:,:,:,:,1,:,:),11),9),1),3);
-cPh = mean(sum(twixobj{1,2}.image(:,:,:,:,:,:,:,:,:,1,:,:),11),9);
-load tmp
-scatter(angle(mean(tmp,1)),angle(cPh))
-
-
-
 % rep by rep because too large for matlab memory
 img   = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.image.NLin 1 twixobj{1,2}.image.NCha 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep]));
 kCoil = complex(zeros([1 1 1 twixobj{1,2}.image.NCha 1 1 1 1 1 1 twixobj{1,2}.image.NRep]));
