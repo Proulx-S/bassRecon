@@ -121,7 +121,8 @@ end
 
 %% Write data
 fprintf('Writing data\n');
-venc = [twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.asElm{:}];
+lSize = twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.lSize;
+venc = [twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.asElm{1:lSize}];
 venc = permute([inf venc.nVelocity],[1 3 4 5 6 7 2 8 9 10 11 12 13 14 15 16]);
 outName = replace(datfile,'.dat',['_fft_FEcrop' num2str(cropRange(1,1)) '-' num2str(cropRange(1,2)) '_PEcrop' num2str(cropRange(2,1)) '-' num2str(cropRange(2,2)) '.mat']);
 save(outName,'img','venc','kCoil','imgCropRef','imgCropMsk');
