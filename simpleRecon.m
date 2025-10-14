@@ -98,13 +98,24 @@ fprintf('Recon done\n');
 %% Define crop range
 if all(size(cropRange,[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16])==[1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1]) && cropRange==1
     % Manual crop range selection routine
-    cropRange = manual_crop_range_v2(sos(mean(img(:,:,:,:,:,:,1,:,:,:,:,:,:,:,:,:),11)));
+    cropRange = manual_crop_range(sos(mean(img(:,:,:,:,:,:,1,:,:,:,:,:,:,:,:,:),11)));
 end
 
 
 %% Crop data
+imgCropRef = mean(img(:,:,:,:),4);
+imgCropMsk = false(size(imgCropRef));
+imgCropMsk(cropRange(1,1):cropRange(1,2),cropRange(2,1):cropRange(2,2)) = true;
+
 if all(size(cropRange,[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16])==[2 2 1 1 1 1 1 1 1 1 1 1 1 1 1 1])
+    imgCropRef = mean(img(:,:,:,:),4);
+    imgCropMsk = false(size(imgCropRef));
+    imgCropMsk(cropRange(1,1):cropRange(1,2),cropRange(2,1):cropRange(2,2)) = true;
+
     img = img(cropRange(1,1):cropRange(1,2),cropRange(2,1):cropRange(2,2),:,:,:,:,:,:,:,:,:,:,:,:,:,:);
+else
+    imgCropRef = mean(img(:,:,:,:),4);
+    imgCropMsk = true(size(imgCropRef));
 end
 
 
@@ -112,6 +123,6 @@ end
 fprintf('Writing data\n');
 venc = [twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.asElm{:}];
 venc = permute([inf venc.nVelocity],[1 3 4 5 6 7 2 8 9 10 11 12 13 14 15 16]);
-outName = replace(datfile,'.dat','_fft.mat');
-save(outName,'img','venc','kCoil');
+outName = replace(datfile,'.dat',['_fft_FEcrop' num2str(cropRange(1,1)) '-' num2str(cropRange(1,2)) '_PEcrop' num2str(cropRange(2,1)) '-' num2str(cropRange(2,2)) '.mat']);
+save(outName,'img','venc','kCoil','imgCropRef','imgCropMsk');
 fprintf('Data written to %s\n', outName);
