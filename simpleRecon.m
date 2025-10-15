@@ -1,10 +1,12 @@
-function cropRange = simpleRecon(datfile,cropRange)
+function cropRange = simpleRecon(datfile,cropRange,combineCoil)
 % This function reads a Siemens .dat file using mapVBVD and prepares
 % the data for BART conversion. It stops after mapVBVD for manual
 % data manipulation and BART conversion.
 
 if ~exist('cropRange','var'); cropRange = []; end
-if isempty(cropRange);        cropRange = 0 ; end
+if isempty(cropRange);        cropRange =  0; end
+if ~exist('combineCoil','var'); combineCoil = []; end
+if isempty(combineCoil);        combineCoil =  1; end
 
 
 %% Dependencies 
@@ -51,6 +53,8 @@ sz([9 11]) = 1;
 % rep by rep because too large for matlab memory
 img   = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.image.NLin 1 twixobj{1,2}.image.NCha 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep]));
 kCoil = complex(zeros([1 1 1 twixobj{1,2}.image.NCha 1 1 1 1 1 1 twixobj{1,2}.image.NRep]));
+
+
 parfor irep = 1:twixobj{1,2}.image.NRep
     fprintf('Processing rep %d\n', irep);
 
@@ -65,7 +69,7 @@ parfor irep = 1:twixobj{1,2}.image.NRep
     kdata = kdata(:,1:twixobj{1,2}.image.NLin,:,:,:,:,:);
 
     % Coil phase
-    kCoil(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) = mean(mean(kdata(:,:,:,:,:,:,1).*sos(kdata(:,:,:,:,:,:,1)),1),2)
+    kCoil(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) = mean(mean(kdata(:,:,:,:,:,:,1).*sos(kdata(:,:,:,:,:,:,1)),1),2);
 
     % kdata = permute(...
     %     mrir_fDFT_freqencode(mrir_image_crop(mrir_fDFT_freqencode(...
@@ -93,6 +97,11 @@ end
 fprintf('Recon done\n');
 
 
+%% Combine coils
+if combineCoil
+    img = mean(img .* exp(-1i.*angle(mean(kCoil,11))),4);
+end
+
 
 
 %% Define crop range
@@ -103,19 +112,17 @@ end
 
 
 %% Crop data
-imgCropRef = mean(img(:,:,:,:),4);
-imgCropMsk = false(size(imgCropRef));
-imgCropMsk(cropRange(1,1):cropRange(1,2),cropRange(2,1):cropRange(2,2)) = true;
-
 if all(size(cropRange,[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16])==[2 2 1 1 1 1 1 1 1 1 1 1 1 1 1 1])
     imgCropRef = mean(img(:,:,:,:),4);
     imgCropMsk = false(size(imgCropRef));
     imgCropMsk(cropRange(1,1):cropRange(1,2),cropRange(2,1):cropRange(2,2)) = true;
 
     img = img(cropRange(1,1):cropRange(1,2),cropRange(2,1):cropRange(2,2),:,:,:,:,:,:,:,:,:,:,:,:,:,:);
+    outName = replace(datfile,'.dat',['_fft_FEcrop' num2str(cropRange(1,1)) '-' num2str(cropRange(1,2)) '_PEcrop' num2str(cropRange(2,1)) '-' num2str(cropRange(2,2)) '.mat']);
 else
-    imgCropRef = mean(img(:,:,:,:),4);
+    imgCropRef = mean(img(:,:,:,:,:,:,1,:,:,:,:,:,:,:,:,:),[4 11]);
     imgCropMsk = true(size(imgCropRef));
+    outName = replace(datfile,'.dat','_fft.mat');
 end
 
 
@@ -124,6 +131,15 @@ fprintf('Writing data\n');
 lSize = twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.lSize;
 venc = [twixobj{1,2}.hdr.MeasYaps.sAngio.sFlowArray.asElm{1:lSize}];
 venc = permute([inf venc.nVelocity],[1 3 4 5 6 7 2 8 9 10 11 12 13 14 15 16]);
-outName = replace(datfile,'.dat',['_fft_FEcrop' num2str(cropRange(1,1)) '-' num2str(cropRange(1,2)) '_PEcrop' num2str(cropRange(2,1)) '-' num2str(cropRange(2,2)) '.mat']);
-save(outName,'img','venc','kCoil','imgCropRef','imgCropMsk');
+try
+    save(outName,'img','venc','kCoil','imgCropRef','imgCropMsk');
+catch ME
+    if strcmp(ME.identifier, 'MATLAB:save:couldNotWriteFile') || ...
+       (isfield(ME, 'message') && contains(ME.message, 'exceeds the maximum variable size'))
+        warning('File too large for default MAT-file format. Retrying save with -v7.3 flag.');
+        save(outName,'img','venc','kCoil','imgCropRef','imgCropMsk','-v7.3');
+    else
+        warning(ME);
+    end
+end
 fprintf('Data written to %s\n', outName);
