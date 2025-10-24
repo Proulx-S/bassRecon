@@ -136,6 +136,8 @@ end
 fprintf('Recon done\n');
 
 
+
+
 %% Combine coils
 switch coilMethod
     case 'bartMap'
@@ -144,23 +146,13 @@ switch coilMethod
         kCoil = mean(kCoil,11);
         iCoil = bart('ecalib -m1', kCoil);
         % multiply by coil sensitivity, remove coil phase and combine coils
-        img = sum(  img .* abs(iCoil) .* exp(-1i * angle(     iCoil    ))  ,4);
         img = sum( img .* conj(iCoil) ,4);
     case 'k'
         img = sum(  img               .* exp(-1i * angle(mean(kCoil,11)))  ,4);
     otherwise
         error('Invalid coil method: %s', coilMethod);
 end
-% if combineCoil
-%     img = mean(img .* exp(-1i.*angle(mean(kCoil,11))),4);
-% end
 
-
-imagesc(angle(sum(img(:,:,:,:,:,:,1,:,:,:,:,:,:,:,:,:),[4 11]))); colorbar
-imagesc(abs(mean(img(:,:,:,:,:,:,1,:,:,:,:,:,:,:,:,:),[4 11])))
-imagesc(angle(iCoil(:,:,:,1))) colorbar
-
-imagesc(angle(sum(img(:,:,:,1,:,:,1,:,:,:,:,:,:,:,:,:),[11]))); colorbar
 
 
 %% Define crop range
@@ -177,11 +169,11 @@ if all(size(cropRange,[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16])==[2 2 1 1 1 1 1 
     imgCropMsk(cropRange(1,1):cropRange(1,2),cropRange(2,1):cropRange(2,2)) = true;
 
     img = img(cropRange(1,1):cropRange(1,2),cropRange(2,1):cropRange(2,2),:,:,:,:,:,:,:,:,:,:,:,:,:,:);
-    outName = replace(datfile,'.dat',['_fft_FEcrop' num2str(cropRange(1,1)) '-' num2str(cropRange(1,2)) '_PEcrop' num2str(cropRange(2,1)) '-' num2str(cropRange(2,2)) '.mat']);
+    outName = replace(datfile,'.dat',['_fft_coilComb-' coilMethod '_FEcrop' num2str(cropRange(1,1)) '-' num2str(cropRange(1,2)) '_PEcrop' num2str(cropRange(2,1)) '-' num2str(cropRange(2,2)) '.mat']);
 else
     imgCropRef = mean(img(:,:,:,:,:,:,1,:,:,:,:,:,:,:,:,:),[4 11]);
     imgCropMsk = true(size(imgCropRef));
-    outName = replace(datfile,'.dat','_fft.mat');
+    outName = replace(datfile,'.dat',['_fft_coilComb-' coilMethod '.mat']);
 end
 
 
