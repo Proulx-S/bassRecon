@@ -1,17 +1,38 @@
-function cropRange = simpleRecon(datfile,cropRange,combineCoil)
+function cropRange = simpleRecon(datfile,cropRange,coilMethod)
 % This function reads a Siemens .dat file using mapVBVD and prepares
 % the data for BART conversion. It stops after mapVBVD for manual
 % data manipulation and BART conversion.
 
 if ~exist('cropRange','var'); cropRange = []; end
 if isempty(cropRange);        cropRange =  0; end
-if ~exist('combineCoil','var'); combineCoil = []; end
-if isempty(combineCoil);        combineCoil =  1; end
+if ~exist('coilMethod','var'); coilMethod = ''; end
+if isempty(coilMethod);        coilMethod =  'bartMap'; end
 
 
 %% Dependencies 
 % mapVBVD.m
 addpath('/scratch/users/Proulx-S/tools/zhRecon');
+% BART MATLAB
+if strcmp(coilMethod,'bartMap')
+    bartMatlabDir = '/scratch/users/Proulx-S/tools/bart-matlab';
+    if ~exist(bartMatlabDir, 'dir')
+        fprintf('BART MATLAB functions not found. Cloning from GitHub...\n');
+        [status, msg] = system(sprintf('cd /scratch/users/Proulx-S/tools && git clone --filter=blob:none --sparse https://github.com/mrirecon/bart.git bart-matlab'));
+        if status ~= 0
+            error('Failed to clone BART MATLAB functions: %s', msg);
+        end
+        [status, msg] = system(sprintf('cd %s && git sparse-checkout set matlab', bartMatlabDir));
+        if status ~= 0
+            error('Failed to set sparse checkout: %s', msg);
+        end
+        fprintf('BART MATLAB functions cloned successfully.\n');
+    end
+    addpath(fullfile(bartMatlabDir, 'matlab'));
+    % Configure BART path for MATLAB wrapper
+    setenv('TOOLBOX_PATH', '/home/sebp/neurocommand/neurodesk/containers/bart_0.9.00_20240723');
+    setenv('PATH', [getenv('PATH') ':/home/sebp/neurocommand/neurodesk/containers/bart_0.9.00_20240723']);
+end
+
 
 
 %% Read data
@@ -51,9 +72,15 @@ sz([9 11]) = 1;
 
 
 % rep by rep because too large for matlab memory
-img   = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.image.NLin 1 twixobj{1,2}.image.NCha 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep]));
-kCoil = complex(zeros([1 1 1 twixobj{1,2}.image.NCha 1 1 1 1 1 1 twixobj{1,2}.image.NRep]));
-
+img           = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.image.NLin 1 twixobj{1,2}.image.NCha 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep 1 1 1 1 1]));
+switch coilMethod
+    case 'bartMap'
+        kCoil = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.image.NLin 1 twixobj{1,2}.image.NCha 1 1                       1 1 1 1 twixobj{1,2}.image.NRep 1 1 1 1 1]));
+    case 'k'
+        kCoil = complex(zeros([                                   1                       1 1 twixobj{1,2}.image.NCha 1 1                       1 1 1 1 twixobj{1,2}.image.NRep 1 1 1 1 1]));
+    otherwise
+        error('Invalid coil method: %s', coilMethod);
+end
 
 parfor irep = 1:twixobj{1,2}.image.NRep
     fprintf('Processing rep %d\n', irep);
@@ -68,8 +95,20 @@ parfor irep = 1:twixobj{1,2}.image.NRep
     % Phase resolution
     kdata = kdata(:,1:twixobj{1,2}.image.NLin,:,:,:,:,:);
 
-    % Coil phase
-    kCoil(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) = mean(mean(kdata(:,:,:,:,:,:,1).*sos(kdata(:,:,:,:,:,:,1)),1),2);
+
+    switch coilMethod
+        case 'bartMap'
+            % Accumulate kdata for later coil sensitivity map
+            kCoil(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) =      kdata(:,:,:,:,:,:,1,:,:,:,:,:,:,:,:,:);
+        case 'k'
+            % Coil phase
+            kCoil(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) = mean(kdata(:,:,:,:,:,:,1).*sos(kdata(:,:,:,:,:,:,1)),[1 2]);
+        otherwise
+            error('Invalid coil method: %s', coilMethod);
+    end
+    
+    
+
 
     % kdata = permute(...
     %     mrir_fDFT_freqencode(mrir_image_crop(mrir_fDFT_freqencode(...
@@ -98,10 +137,30 @@ fprintf('Recon done\n');
 
 
 %% Combine coils
-if combineCoil
-    img = mean(img .* exp(-1i.*angle(mean(kCoil,11))),4);
+switch coilMethod
+    case 'bartMap'
+        % compute coil sensitivity/phase map
+        display('Computing coil sensitivity/phase map');
+        kCoil = mean(kCoil,11);
+        iCoil = bart('ecalib -m1', kCoil);
+        % multiply by coil sensitivity, remove coil phase and combine coils
+        img = sum(  img .* abs(iCoil) .* exp(-1i * angle(     iCoil    ))  ,4);
+        img = sum( img .* conj(iCoil) ,4);
+    case 'k'
+        img = sum(  img               .* exp(-1i * angle(mean(kCoil,11)))  ,4);
+    otherwise
+        error('Invalid coil method: %s', coilMethod);
 end
+% if combineCoil
+%     img = mean(img .* exp(-1i.*angle(mean(kCoil,11))),4);
+% end
 
+
+imagesc(angle(sum(img(:,:,:,:,:,:,1,:,:,:,:,:,:,:,:,:),[4 11]))); colorbar
+imagesc(abs(mean(img(:,:,:,:,:,:,1,:,:,:,:,:,:,:,:,:),[4 11])))
+imagesc(angle(iCoil(:,:,:,1))) colorbar
+
+imagesc(angle(sum(img(:,:,:,1,:,:,1,:,:,:,:,:,:,:,:,:),[11]))); colorbar
 
 
 %% Define crop range
