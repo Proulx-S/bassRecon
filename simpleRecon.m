@@ -4,24 +4,24 @@ function [outName,cropRange] = simpleRecon(datfile,coilMethod,cropRange,verbose)
 %   cropRange = simpleRecon(datfile,cropRange,coilMethod)
 %
 % Reads a Siemens .dat with mapVBVD, reconstructs (ifft2c), combines coils
-% (BART ecalib for 'bartMap' or k-space phase for 'k'), optionally crops,
+% (BART ecalib for 'bartEspirit' or k-space phase for 'k'), optionally crops,
 % and saves img, venc, kCoil, imgCropRef, imgCropMsk to a .mat file.
 %
 % Inputs:
 %   datfile    - path to Siemens .dat file
 %   cropRange  - (optional) [] or 0: no crop; 1: run manual_crop_range; [2x2]: [row;col] crop limits
-%   coilMethod - (optional) 'bartMap' (default) or 'k'
+%   coilMethod - (optional) 'bartEspirit' (default) or 'k'
 %
 % Output:
 %   cropRange  - crop range used (from input or from manual_crop_range)
 %
 % Writes: <datfile_base>_fft_coilComb-<coilMethod>.mat (or _FEcrop..._PEcrop... if cropped)
-% Dependencies: mapVBVD (zhRecon), optionally BART MATLAB (for coilMethod 'bartMap')
+% Dependencies: mapVBVD (zhRecon), optionally BART MATLAB (for coilMethod 'bartEspirit')
 
 if ~exist('cropRange','var'); cropRange = []; end
 if isempty(cropRange);        cropRange =  0; end
 if ~exist('coilMethod','var'); coilMethod = ''; end
-if isempty(coilMethod);        coilMethod =  'bartMap'; end
+if isempty(coilMethod);        coilMethod =  'bartEspirit'; end
 if ~exist('verbose','var'); verbose = ''; end
 if isempty(verbose);        verbose =  0; end
         
@@ -31,7 +31,7 @@ if isempty(verbose);        verbose =  0; end
 % mapVBVD.m
 addpath('/scratch/users/Proulx-S/tools/zhRecon');
 % BART MATLAB
-if strcmp(coilMethod,'bartMap')
+if strcmp(coilMethod,'bartEspirit')
     bartMatlabDir = '/scratch/users/Proulx-S/tools/bart-matlab';
     if ~exist(bartMatlabDir, 'dir')
         fprintf('BART MATLAB functions not found. Cloning from GitHub...\n');
@@ -76,7 +76,7 @@ disp(['Mapping ' datfileName ' done.']);
 % Initialize image and coil sensitivity arrays
 img           = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.image.NLin 1 twixobj{1,2}.image.NCha 1 1 twixobj{1,2}.image.NSet 1 1 1 twixobj{1,2}.image.NRep 1 1 1 1 1]));
 switch coilMethod
-    case 'bartMap'
+    case 'bartEspirit'
         kCoil = complex(zeros([twixobj{1,2}.hdr.Config.ImageColumns twixobj{1,2}.image.NLin 1 twixobj{1,2}.image.NCha 1 1                       1 1 1 1 twixobj{1,2}.image.NRep 1 1 1 1 1]));
     otherwise
         error('Invalid coil method: %s', coilMethod);
@@ -98,7 +98,7 @@ parfor irep = 1:twixobj{1,2}.image.NRep
     % Get coil data (first set for the velocity compensated acquisition in phase contrast data)
     set = 1;
     switch coilMethod
-        case 'bartMap'
+        case 'bartEspirit'
             % Accumulate kdata for later coil sensitivity map (velocity compensated set)
             kCoil(:,:,:,:,:,:,:,:,:,:,irep,:,:,:,:,:) =      kdata(:,:,:,:,:,:,set,:,:,:,:,:,:,:,:,:);
         otherwise
@@ -144,14 +144,14 @@ kCoil;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute coil sensitivity/phase map
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-display('Coil sensitivity/phase map. Computing...');
+display(['Coil sensitivity/phase map (' coilMethod '). Computing...']);
 switch coilMethod
-    case 'bartMap' % ESPIRIT
+    case 'bartEspirit' % ESPIRIT
         iCoil = bart('ecalib -m1', kCoil);
     otherwise
         error('Invalid coil method: %s', coilMethod);
 end
-display('Coil sensitivity/phase map. Done.');
+display(['Coil sensitivity/phase map (' coilMethod '). Done.']);
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 iCoil;
 
@@ -170,7 +170,7 @@ if verbose>1
     ht = tiledlayout(nRows,nCols); ht.TileSpacing = 'compact'; ht.Padding = 'compact'; ht.TileIndexing = 'columnmajor'; ax = {};
     for k = 1:size(iCoil,4)
         ax{end+1} = nexttile;
-        imagesc(angle(mean(img(:,:,:,k,:,:,s,:,:,:,:),11))); axis image off; colormap(ax{end},hsv); drawnow;
+        imagesc(angle(mean(img(:,:,:,k,:,:,s,:,:,:,:),11)),[-pi pi]); axis image off; colormap(ax{end},hsv); drawnow;
     end
     title(ht,'original phase map from each coil')
 
@@ -180,7 +180,7 @@ if verbose>1
     ht = tiledlayout(nRows,nCols); ht.TileSpacing = 'compact'; ht.Padding = 'compact'; ht.TileIndexing = 'columnmajor'; ax = {};
     for k = 1:size(iCoil,4)
         ax{end+1} = nexttile;
-        imagesc(angle(mean(img(:,:,:,k,:,:,s,:,:,:,:).*conj(phaseMap),11))); axis image off; colormap(ax{end},hsv); drawnow;
+        imagesc(angle(mean(img(:,:,:,k,:,:,s,:,:,:,:).*conj(phaseMap),11)),[-pi pi]); axis image off; colormap(ax{end},hsv); drawnow;
     end
     title(ht,'original phase map from each coil after subtracting the phase map of the coil-averaged image')
 
@@ -188,7 +188,7 @@ if verbose>1
     ht = tiledlayout(nRows,nCols); ht.TileSpacing = 'compact'; ht.Padding = 'compact'; ht.TileIndexing = 'columnmajor'; ax = {};
     for k = 1:size(iCoil,4)
         ax{end+1} = nexttile;
-        imagesc(angle(mean(iCoil(:,:,:,k,:,:,s,:,:,:,:),11))); axis image off; colormap(ax{end},hsv); drawnow;
+        imagesc(angle(mean(iCoil(:,:,:,k,:,:,s,:,:,:,:),11)),[-pi pi]); axis image off; colormap(ax{end},hsv); drawnow;
     end
     title(ht,'phase of bart''s coil sensitivity map')
 end
@@ -202,17 +202,17 @@ if verbose>1
     ht = tiledlayout(nRows,nCols); ht.TileSpacing = 'compact'; ht.Padding = 'compact'; ht.TileIndexing = 'columnmajor'; ax = {};
     for k = 1:size(iCoil,4)
         ax{end+1} = nexttile;
-        imagesc(angle(mean(img(:,:,:,k,:,:,s,:,:,:,:),11))); axis image off; colormap(ax{end},hsv); drawnow;
+        imagesc(angle(mean(img(:,:,:,k,:,:,s,:,:,:,:).*conj(iCoil(:,:,:,k)),11)),[-pi pi]); axis image off; colormap(ax{end},hsv); drawnow;
     end
     title(ht,'bart-corrected phase map from each coil')
 
-    phaseMap = exp(1i.*angle(mean(img(:,:,:,:,:,:,s,:,:,:,:),[4 11])));
+    phaseMap = exp(1i.*angle(mean(img(:,:,:,:,:,:,s,:,:,:,:).* conj(iCoil),[4 11])));
 
     f{end+1} = figure;
     ht = tiledlayout(nRows,nCols); ht.TileSpacing = 'compact'; ht.Padding = 'compact'; ht.TileIndexing = 'columnmajor'; ax = {};
     for k = 1:size(iCoil,4)
         ax{end+1} = nexttile;
-        imagesc(angle(mean(img(:,:,:,k,:,:,s,:,:,:,:).*conj(phaseMap),11))); axis image off; colormap(ax{end},hsv); drawnow;
+        imagesc(angle(mean(img(:,:,:,k,:,:,s,:,:,:,:).* conj(iCoil(:,:,:,k)).*conj(phaseMap),11)),[-pi pi]); axis image off; colormap(ax{end},hsv); drawnow;
     end
     title(ht,'bart-corrected phase map from each coil after subtracting the phase map of the coil-averaged image')
 end
