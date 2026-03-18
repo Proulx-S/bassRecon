@@ -1,4 +1,4 @@
-function [outName,cropRange] = simpleRecon(datfile,coilMethod,cropRange,verbose)
+function [outName,cropRange,img,iCoil] = simpleRecon(datfile,coilMethod,cropRange,verbose)
 % simpleRecon  Reconstruct Siemens .dat and save coil-combined image to .mat
 %
 %   cropRange = simpleRecon(datfile,cropRange,coilMethod)
@@ -154,6 +154,14 @@ end
 display(['Coil sensitivity/phase map (' coilMethod '). Done.']);
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 iCoil;
+
+
+
+if nargout>2
+    outName = [];
+    cropRange = [];
+    return;
+end
 
 
 %%%%%%%%%%%%%%%%
