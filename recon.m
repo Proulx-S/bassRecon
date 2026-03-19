@@ -296,10 +296,27 @@ if ~exist(outName,'file') || force
         end
     end
     % Remove venc-dependent background phase using phase reference data (dataRefFile; only for velocity-encoded data)
+    if ~isfield(imgInfo,'procList'); imgInfo.procList = {}; end
+    if ~isfield(imgInfo,'proc');     imgInfo.proc     = {}; end
     if size(img,7)>1
         if size(img,7)~=size(imgPhase,7); error('datPhaseFile and datFile have different number of velocity-encoded sets'); end
-        % subtract phase (will mask out voxels not covered by datPhaseFile)
-        img = img ./ exp(1i*angle(imgPhase));
+        % subtract phase using reference data
+        sz = ones(1,16); sz(11) = size(img,11);
+        phaseMask = ~isnan(imgPhase);
+        img(repmat(phaseMask,sz)) = img(repmat(phaseMask,sz)) ./ exp(1i*angle(imgPhase(phaseMask)));
+        imgInfo.procList{1,end+1}      = 'phase correction';
+        imgInfo.proc{    1,end+1}.mask = phaseMask(:,:,:,1);
+
+        % phaseMask = ~isnan(imgPhase(:,:,:,1));
+        % img      = permute(img     ,[4 5 6 7 8 9 10 11 12 13 14 15 16 1 2 3]);
+        % imgPhase = permute(imgPhase,[4 5 6 7 8 9 10 11 12 13 14 15 16 1 2 3]);
+        % img(:,:,:,:,:,:,:,:,:,:,:,:,:, phaseMask) = img(:,:,:,:,:,:,:,:,:,:,:,:,:, phaseMask) ./ exp(1i*angle(imgPhase(:,:,:,:,:,:,:,:,:,:,:,:,:, phaseMask)));
+        % % remove any phase from voxels not covered by the phase reference data
+        % img(:,:,:,:,:,:,:,:,:,:,:,:,:,~phaseMask) = img(:,:,:,:,:,:,:,:,:,:,:,:,:,~phaseMask) ./ exp(1i*angle(     img(:,:,:,:,:,:,:,:,:,:,:,:,:,~phaseMask)));
+        % img      = permute(img     ,[14 15 16 1 2 3 4 5 6 7 8 9 10 11 12 13]);
+        % imgPhase = permute(imgPhase,[14 15 16 1 2 3 4 5 6 7 8 9 10 11 12 13]);
+        % imgInfo.procList{1,end+1}      = 'phase correction';
+        % imgInfo.proc{    1,end+1}.mask = phaseMask;
     end
     %% %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
