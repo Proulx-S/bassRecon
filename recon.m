@@ -1,4 +1,4 @@
-function [outName,cropRange,img] = recon(datFile,datNoiseFile,datPhaseFile,coilMethod,cropRange,verbose,force)
+function [outName,img] = recon(datFile,datNoiseFile,datPhaseFile,coilMethod,cropRange,verbose,force)
 
 if ~exist('cropRange','var'); cropRange = []; end
 if isempty(cropRange);        cropRange =  0; end
@@ -223,6 +223,9 @@ if ~exist(outNameTmp,'file') || force
     imgInfo.fov = [twixobj{1,2}.hdr.Config.ReadFoV twixobj{1,2}.hdr.Config.PhaseFoV];
     imgInfo.mat = [twixobj{1,2}.hdr.Config.ImageLines twixobj{1,2}.hdr.Config.PhaseEncodingLines];
     imgInfo.dim = strjoin({'READ' 'PHS1' 'PHS2' 'COIL' 'MAPS' 'TE' 'COEFF=venc' 'COEFF2' 'ITER' 'CSHIFT' 'TIME1' 'TIME2' 'LEVEL' 'SLICE' 'AVG' 'BATCH'},' x ');
+    imgInfo.datFile      = datFile;
+    imgInfo.datPhaseFile = datPhaseFile;
+    imgInfo.datNoiseFile = datNoiseFile;
 
     save(outNameTmp,'img','iCoil','imgInfo');
     %% %%%%%%%%%%%%%%%
@@ -255,7 +258,7 @@ if ~exist(outName,'file') || force
     % Process datPhaseFile if provided
     if exist('datPhaseFile','var') && ~isempty(datPhaseFile)
         if ~datPhaseFlag
-            [~,~,imgPhase] = recon([],[],datPhaseFile,coilMethod);
+            [~,imgPhase] = recon([],[],datPhaseFile,coilMethod);
         else
             outName   = [];
             cropRange = [];
