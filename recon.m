@@ -21,9 +21,6 @@ end
 %% Dependencies
 %%%%%%%%%%%%%%%
 toolDir = fileparts(fileparts(mfilename('fullpath')));
-% mapVBVD.m
-tool = 'zhRecon'; repoURL = 'https://github.com/Proulx-S/zhRecon.git'; branch = '';
-gitClone(repoURL, fullfile(toolDir, tool), [], branch);
 % BART
 if strcmp(coilMethod,'bartEspirit')
     % matlab wrapper
